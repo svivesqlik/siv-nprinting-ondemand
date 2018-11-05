@@ -1,0 +1,9 @@
+nprinting-sense-on-demand.qext;
+nprinting-sense-on-demand.js;
+js/properties.js;
+js/button.js;
+js/dropdown.js;
+css/nprinting-sense-on-demand.css;
+css/bootstrap.css;
+template/view-main-single.html;
+template/view-popup.html;
