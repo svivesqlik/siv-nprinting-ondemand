@@ -1,18 +1,16 @@
 define([
         "jquery",
         "qlik",
-        "./js/properties",
+        "./properties",
         "text!./css/nprinting-sense-on-demand.css",
         "text!./css/bootstrap.css",
         "text!./template/view-main-single.html",
         "text!./template/view-popup.html",
-        //"client.models/current-selections",
         "qvangular",
         "core.utils/deferred",
-        //"objects.backend-api/listbox-api",
-        //"objects.models/listbox",
-        "./js/button",
-        "./js/dropdown"
+        "./selections",
+        "./button",
+        "./dropdown",
     ],
     function (
         $,
@@ -22,11 +20,9 @@ define([
         bootstrap,
         viewMain,
         viewPopup,
-        //CurrentSelectionsModel,
         qvangular,
-        Deferred
-        //ListboxApi,
-        //Listbox
+        Deferred,
+        selections
     ) {
         $("<style>").html(css).appendTo("head");
         $("<style>").html(bootstrap).appendTo("head");
@@ -35,6 +31,7 @@ define([
 
         var app = qlik.currApp();
         var currentSelections;
+
 
         function getLoginNtlm(conn) {
             var URL = conn.server + 'api/v1/login/ntlm'
@@ -85,7 +82,6 @@ define([
 
                     case 'queued':
                     case 'running':
-                        //progress.addProgress(10);
                         setTimeout(function () {
                             checkProgress(URL, progress, callback);
                         }, 1000);
@@ -93,7 +89,6 @@ define([
                         break;
 
                     default:
-                        //progress.setProgress(100);
                         callback();
                 }
             });
@@ -101,113 +96,24 @@ define([
         }
 
         function getSelectionByApi() {
-            var fp = [];
-            currentSelections.map(function (selection) {
-                fp.push(getSelectedValues(selection));
-            });
-
-            return Deferred.all(fp);
-        }
-
-        function getSelectedValues(selection) {
-            var df = Deferred(),
-                f = app.field(selection.fieldName).getData(),
-                listener = function () {
-                    var isNumeric = false,
-                        selectedValues = f.rows.reduce(function (result, row) {
-                            if (row.qState === 'S') {
-                                if (!isNumeric && !isNaN(row.qNum)) {
-                                    isNumeric = true;
-                                }
-                                result.push(isNumeric ? row.qNum : row.qText);
-                            }
-                            return result;
-                        }, []);
-
-                    df.resolve({
-                        fieldName: selection.fieldName,
-                        selectedCount: selection.selectedCount,
-                        selectedValues: selectedValues,
-                        isNumeric: isNumeric
-                    });
-
-                    f.OnData.unbind(listener);
-                };
-
-            f.OnData.bind(listener);
-
-            return df.promise;
-        }
-
-        function getSelectionByQlik() {
-            globalSelectionService = qvangular.getService('qvGlobalSelectionsService');
-
-            return CurrentSelectionsModel.get().then(function (model) {
-                return model.getLayout().then(function (layout) {
-                    return getSelectedValuesByInternalService(layout, app.model.enigmaModel);
+            return new Promise(function (resolve, reject) {
+                app.getObject(null, 'CurrentSelections').then(function (sels) {
+                    resolve(selections.getSelectionValues(app, sels.layout.qSelectionObject.qSelections));
                 });
             });
-        }
-
-        function getSelectedValuesByQlik(layout, enigmaModel) {
-            var i, qSelections = layout.qSelectionObject ? layout.qSelectionObject.qSelections : null;
-            var fieldPromises = [];
-
-            if (qSelections && qSelections.length > 0) {
-
-                var fieldExtractor = function (qFieldSelections, rects) {
-
-                    var rects = [{
-                        qTop: 0,
-                        qLeft: 0,
-                        qWidth: 1,
-                        qHeight: qFieldSelections.selectedCount
-                    }];
-
-                    var fp = Listbox.createTransientField(enigmaModel, qFieldSelections.fieldName, {}).then(function (model) {
-                        var backendApi = new ListboxApi(model);
-                        return backendApi.getData(rects).then(function (dataPages) {
-                            if (dataPages && dataPages.length) {
-                                var valArr = dataPages[0].qMatrix;
-                                var v;
-                                for (var j = 0; j < valArr.length; j++) {
-                                    v = valArr[j][0];
-                                    var isNum = !isNaN(v.qNum);
-                                    qFieldSelections.selectedValues.push(isNum ? v.qNum : v.qText);
-                                    // set isNumeric if there is a number
-                                    qFieldSelections.isNumeric = qFieldSelections.isNumeric || isNum;
-                                }
-                            }
-                            return qFieldSelections;
-                        });
-                    });
-                    return fp;
-                };
-
-                for (i = 0; i < qSelections.length; i++) {
-                    var fieldSelections = {
-                        fieldName: qSelections[i].qField,
-                        selectedCount: qSelections[i].qSelectedCount,
-                        selectedValues: [],
-                        isNumeric: false
-                    }
-                    fieldPromises.push(fieldExtractor(fieldSelections));
-                }
-            }
-
-            return Deferred.all(fieldPromises);
         }
 
         function doExport(options) {
             var conn = options.conn,
                 report = options.report,
-                format = options.format,
+                format = options.format;
 
-                selections = getSelectionByApi();
-                //selections = getSelectionByQlik();
+            var selections = getSelectionByApi();
 
             return selections.then(function (allFieldSelections) {
+
                 return getConnections(conn).then(function (response) {
+
                     var connectionId;
                     if (response.data.totalItems == 1) {
                         connectionId = response.data.items[0].id;
@@ -221,8 +127,6 @@ define([
                             }
                         }
                     }
-
-
                     var requestUrl = conn.server + 'api/v1/ondemand/requests';
                     var onDemandRequest = {
                         type: 'report',
@@ -231,8 +135,7 @@ define([
                             outputFormat: format
                         },
                         selections: allFieldSelections,
-                        // here's the sense connection on which we want to apply selections
-                        connectionId: connectionId//'5c0af3f6-e65d-40d2-8f03-6025f8196ff'
+                        connectionId: connectionId
                     };
 
                     return $.ajax({
@@ -332,7 +235,7 @@ define([
                 case 'QlikEntity':
                     return '../extensions/nprinting-sense-on-demand/images/icon-template-qlik.png';
 
-                //Export formats
+                    //Export formats
                 case 'PDF':
                     return '../extensions/nprinting-sense-on-demand/images/icon-file-pdf.png';
                 case 'HTML':
@@ -522,67 +425,7 @@ define([
                 outterObj.find('.lui-icon--expand ').remove();
             }]
 
-            /*
-            paint: function($element) {
-                var nprintingBase = 'https://nprinting.s-cubed.local:4993/api/v1';
-                var onDemandRequest = {
-                    type: "report",
-                    config: {
-                        reportId: "b6feb065-0fec-43b5-a238-43342fbc88e0",
-                        outputFormat: "xls"
-                    }
-                };
 
-                var button = createBtn("export", "Export");
-
-                $element.html(button);
-
-                var btnInstnace = $element.find("button")[0];
-
-                $(btnInstnace).on('click', function($event) {
-                    //alert("OK");
-                    $.ajax({
-                        url: nprintingBase + '/login/ntlm',
-                        xhrFields: {
-                            withCredentials: true
-                        }
-                    }).done(function(credential) {
-                        $.ajax({
-                            url: nprintingBase + '/ondemand/requests',
-                            method: 'POST',
-                            contentType: 'application/json',
-                            data: JSON.stringify(onDemandRequest),
-                            xhrFields: {
-                                withCredentials: true
-                            }
-                        }).done(function(response) {
-                            showLoading();
-
-                            $element.append($('<iframe id="download" style="display:none;"></iframe>'));
-
-                            setTimeout(function() {
-                                document.getElementById('download').src = nprintingBase + '/ondemand/requests/' + response.data.id + '/result';
-
-                                //window.location.assign()
-
-                                $.ajax({
-                                    url: nprintingBase + '/ondemand/requests/' + response.data.id + '/result',
-                                    crossDomain: true,
-                                    xhrFields: {
-                                        withCredentials: true
-                                    }
-                                });
-
-                            }, 5000);
-
-                        });
-                    });
-
-                });
-                //needed for export
-                return qlik.Promise.resolve();
-            }
-            */
         };
 
     });

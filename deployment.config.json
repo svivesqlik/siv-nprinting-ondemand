@@ -1,0 +1,17 @@
+{
+    "server": {
+        "host": "qmi-qs-cln",
+        "isSecure": false,
+        "prefix": "hdr",
+        "headers": {
+            "hdr-usr": "qmi-qs-cln_qlik",
+            "cache-control": "no-cache"
+        },
+        "addParams": {
+            "withCredentials": false
+        }
+    },
+    "desktop": {
+        "destination": ""
+    }
+}

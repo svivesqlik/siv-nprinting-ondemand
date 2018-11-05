@@ -1,0 +1,12 @@
+{
+  "name": "nprinting-on-demand",
+  "version": "0.1.0",
+  "scripts": {
+    "watch-deploy": "node ./node_modules/qext-scripts/bin/qext-scripts.js -W -d",
+    "watch-deploy-desktop": "node ./node_modules/qext-scripts/bin/qext-scripts.js -w -D"
+  },
+  "devDependencies": {
+    "qext-scripts": "0.x"
+  },
+  "dependencies": {}
+}
