@@ -92,7 +92,6 @@ define([
                         callback();
                 }
             });
-
         }
 
         function getSelectionByApi() {
@@ -127,6 +126,7 @@ define([
                             }
                         }
                     }
+
                     var requestUrl = conn.server + 'api/v1/ondemand/requests';
                     var onDemandRequest = {
                         type: 'report',

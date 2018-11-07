@@ -1,10 +1,10 @@
 {
     "server": {
-        "host": "qmi-qs-cln",
-        "isSecure": false,
+        "host": "qmi-qs-odag",
+        "isSecure": true,
         "prefix": "hdr",
         "headers": {
-            "hdr-usr": "qmi-qs-cln_qlik",
+            "hdr-usr": "qmi-qs-odag_qlik",
             "cache-control": "no-cache"
         },
         "addParams": {

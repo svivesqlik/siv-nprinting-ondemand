@@ -89,7 +89,13 @@ var SharingViaUrl = (function () {
 
                     if (with_state.indexOf(page[j][0].qState) > -1) {
                         // Only pick the fields with some specific state
-                        selected[field].push(page[j][0].qText);
+                        if (!isNaN(page[j][0].qNum)) {
+                            // Push a numeric value through
+                            selected[field].push(page[j][0].qNum);
+                        } else {
+                            // Push a string value through
+                            selected[field].push(page[j][0].qText);
+                        }
                     }
                 }
 
@@ -135,16 +141,11 @@ var SharingViaUrl = (function () {
                 // All values are selected
                 var all_selection = (sel.qSelected == 'ALL');
 
-                if (all_selection) {
-
-                    selected[sel.qField] = ['ALL'];
-                    resolve(true);
-
-                } else if (sel.qTotal > sel.qSelectionThreshold) {
+                if (all_selection || sel.qTotal > sel.qSelectionThreshold) {
 
                     // If the are only a few selected values (but more than the informed limit
                     // by Sense (selectionThreshold), pick them.
-                    _self.getAllDataWithHypercube(_self, sel.qField, null, ['S'], resolve);
+                    _self.getAllDataWithHypercube(_self, sel.qField, null, ['S', 'XS'], resolve);
 
                 } else {
                     // There are a few selected values, and are lower than the SelectionThreshold limit. 
@@ -192,15 +193,28 @@ var SharingViaUrl = (function () {
                         console.log(states);
                     }
 
-                    var result = {};
+                    // Check if at leats one field is actually
+                    // a number, if so, then flag it as so
                     var result_list = [];
+                    var is_numeric = {};
+                    for (var f in selected) {
+                        var s = selected[f];
+                        is_numeric[f] = false;
+
+                        for (var n = 0; n < s.length; ++n) {
+                            if (!isNaN(s[n])) {
+                                is_numeric[f] = true;
+                                break;
+                            }
+                        }
+                    }
 
                     for (var c in selected) {
                         result_list.push({
                             fieldName: c,
                             selectedCount: selected[c].length,
                             selectedValues: selected[c],
-                            //isNumeric: isNumeric
+                            isNumeric: is_numeric[c]
                         });
                     }
 
