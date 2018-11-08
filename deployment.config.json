@@ -1,7 +1,7 @@
 {
     "server": {
         "host": "qmi-qs-odag",
-        "isSecure": true,
+        "isSecure": false,
         "prefix": "hdr",
         "headers": {
             "hdr-usr": "qmi-qs-odag_qlik",

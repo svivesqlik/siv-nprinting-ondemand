@@ -8,6 +8,7 @@ var SharingViaUrl = (function () {
         lastrows = {},
         states = {},
         selected = {},
+        _field_types = {},
         MAX_DIM_WIDTH = 1,
         MAX_HEIGHT = 10000,
         _SHARING_LIMIT = 12 * 1000,
@@ -20,6 +21,7 @@ var SharingViaUrl = (function () {
          * Calls itself recursively when there are a lot of rows (more than 10k).
          */
         getAllDataWithHypercube: function (_self, field, datapage, with_state, promiseresolve) {
+            var type = _self._field_types[field];
 
             if (!datapage) {
                 datapage = [{
@@ -88,14 +90,14 @@ var SharingViaUrl = (function () {
                     }
 
                     if (with_state.indexOf(page[j][0].qState) > -1) {
+
                         // Only pick the fields with some specific state
-                        if (!isNaN(page[j][0].qNum)) {
-                            // Push a numeric value through
+                        if (type == 'number') {
                             selected[field].push(page[j][0].qNum);
-                        } else {
-                            // Push a string value through
+                        } else if (type == 'string') {
                             selected[field].push(page[j][0].qText);
                         }
+
                     }
                 }
 
@@ -151,14 +153,65 @@ var SharingViaUrl = (function () {
                     // There are a few selected values, and are lower than the SelectionThreshold limit. 
                     // Just pick them straight away.
                     var list = [];
+                    var type = _self._field_types[sel.qField];
+
                     for (var i = 0; i < sel.qSelectedFieldSelectionInfo.length; ++i) {
-                        list.push(sel.qSelectedFieldSelectionInfo[i].qName);
+                        var val = sel.qSelectedFieldSelectionInfo[i].qName;
+                        if (type == 'number') {
+                            list.push(Number(val));
+                        } else {
+                            list.push(val);
+                        }
                     }
 
                     selected[sel.qField] = list;
                     resolve(true);
                 }
             });
+        },
+
+
+        /**
+         * Queries the app API to caracterise the fields on the application. Caracterise means tag the 
+         * fields as number or string.
+         */
+        _getFieldsAndDimensionInformation: function () {
+            return new Promise(function (resolve, reject) {
+
+                _app.model.waitForOpen.promise.then(function () {
+                    // Retrieve all fields and evaluate their tags to see what kind
+                    // of type we are dealing with, wether is a numeric or a string
+                    // value (selections will need to be done differently).
+                    _app.model.enigmaModel.getTablesAndKeys({
+                            "qcx": 1000,
+                            "qcy": 1000
+                        }, {
+                            "qcx": 0,
+                            "qcy": 0
+                        },
+                        30,
+                        true,
+                        false
+                    ).then(function (res) {
+
+                        var tables_and_fields = res.qtr;
+                        var fieldsTypeCache = {};
+
+                        for (var t = 0; t < tables_and_fields.length; ++t) {
+                            var c_table = tables_and_fields[t];
+                            for (var f = 0; f < c_table.qFields.length; ++f) {
+                                var cf = c_table.qFields[f]
+                                // Find if it's an integer or a string.
+                                fieldsTypeCache[cf.qName] = cf.qTags.indexOf('$numeric') > -1 ? 'number' : 'string';
+                            }
+                        }
+
+                        resolve(fieldsTypeCache);
+
+                    });
+                });
+            });
+
         },
 
         /**
@@ -187,42 +240,37 @@ var SharingViaUrl = (function () {
 
             return new Promise(function (resolve, reject) {
 
-                _self.selectionsPromiseWrap(_self, sels, 0, function () {
+                _self._getFieldsAndDimensionInformation().then(function (field_types) {
 
-                    if (_LOG_STATES) {
-                        console.log(states);
-                    }
+                    _self._field_types = field_types;
 
-                    // Check if at leats one field is actually
-                    // a number, if so, then flag it as so
-                    var result_list = [];
-                    var is_numeric = {};
-                    for (var f in selected) {
-                        var s = selected[f];
-                        is_numeric[f] = false;
+                    _self.selectionsPromiseWrap(_self, sels, 0, function () {
 
-                        for (var n = 0; n < s.length; ++n) {
-                            if (!isNaN(s[n])) {
-                                is_numeric[f] = true;
-                                break;
-                            }
+                        if (_LOG_STATES) {
+                            console.log(states);
                         }
-                    }
 
-                    for (var c in selected) {
-                        result_list.push({
-                            fieldName: c,
-                            selectedCount: selected[c].length,
-                            selectedValues: selected[c],
-                            isNumeric: is_numeric[c]
-                        });
-                    }
+                        var result_list = [];
 
-                    resolve(result_list);
+                        for (var c in selected) {
+                            result_list.push({
+                                fieldName: c,
+                                selectedCount: selected[c].length,
+                                selectedValues: selected[c],
+                                isNumeric: (field_types[c] == 'number')
+                            });
+                        }
+
+                        resolve(result_list);
+
+                    });
                 });
             });
-        },
+        }
+
     };
+
+
 
     return SharingViaUrl;
 })();

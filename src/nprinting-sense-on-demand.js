@@ -425,7 +425,6 @@ define([
                 outterObj.find('.lui-icon--expand ').remove();
             }]
 
-
         };
 
     });
